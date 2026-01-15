@@ -17,3 +17,7 @@ Java17
 (七)OpenAPI : API文件撰寫
 (八)單元測試 : Junit5/Mockito
 (九)Jmeter (高併發測試)
+----------
+
+這是一個搶購商品的系統
+User->搶購商品->Redis做第一層數量控管->Kafka發起搶購訊息->Kafka和DB做數量同步(原子性)
