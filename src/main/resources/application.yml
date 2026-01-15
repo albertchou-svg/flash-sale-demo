@@ -1,0 +1,49 @@
+server:
+  port: 8080
+
+spring:
+  # MySql 設定
+  datasource:
+    url: jdbc:mysql://localhost:3306/flash_sale_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 新增 Kafka 設定
+  kafka:
+    bootstrap-servers: localhost:9092
+    # 1. 消費者設定 (給 Kafka Driver 看的)
+    consumer:
+      group-id: flash-sale-group
+      enable-auto-commit: false  # ✅ 正確：關閉驅動層的自動提交
+      auto-offset-reset: latest # 從最新的訊息開始讀
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    # 2. 監聽器設定 (給 Spring 容器看的)
+    # ⚠️ 關鍵修正：listener 要跟 consumer 同一層級，不能縮排在 consumer 裡面
+    listener:
+      ack-mode: manual_immediate # ✅ 正確：告訴 Spring 我要手動簽收
+    # 3. 生產者設定
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+
+  # JPA ??
+  jpa:
+    hibernate:
+      ddl-auto: update # ????????????????
+    show-sql: true     # ? Console ?? SQL????? Transaction
+
+  # Redis ??
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+# Swagger UI ???? (Optional)
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
