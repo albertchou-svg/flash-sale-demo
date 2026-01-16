@@ -5,6 +5,7 @@ import com.example.flashsale.repository.OrderRepository;
 import com.example.flashsale.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
@@ -30,37 +31,52 @@ public class OrderConsumer {
         log.info("📥 [Kafka Consumer] 開始處理訂單: {}", message);
 
         try {
-            // 1. 解析訊息 (訊息格式: "USER_ORDER:商品ID")
+            // 1. 解析訊息 "userId:productId:orderNo"
             String[] parts = message.split(":");
-            if (parts.length < 2) {
-                // 格式錯誤的壞訊息，直接 ack 掉，不然會一直卡在佇列頭部
-                ack.acknowledge();
+            if (parts.length < 3) {
+                log.error("❌ 訊息格式錯誤: {}", message);
+                ack.acknowledge(); // 格式錯誤直接丟掉，避免卡死
                 return;
             }
 
+            Long userId = Long.parseLong(parts[0]);
             Long productId = Long.parseLong(parts[1]);
+            String orderNo = parts[2];
 
-            // 2. 扣減 MySQL 庫存
+            // 2. 扣減 MySQL 庫存 (Redis 已扣，這裡做同步)
             int updateCount = productRepository.decreaseStock(productId);
 
             if (updateCount > 0) {
                 // 3. 建立訂單
                 Order order = new Order();
                 order.setProductId(productId);
-                order.setUserId(1001L); // 模擬一個用戶 ID
+                order.setUserId(userId);
+                order.setOrderNo(orderNo); // ✅ 寫入 UUID
                 order.setCreateTime(LocalDateTime.now());
-                orderRepository.save(order);
 
-                log.info("✅ [MySQL] 訂單建立成功，庫存已同步！商品ID: {}", productId);
+                try{
+                    // 4. 寫入資料庫
+                    orderRepository.save(order);
 
-                // 3. ⚠️ 關鍵：最後才提交 Offset！
-                // 這代表：「我確定資料庫已經安全了，Kafka 你可以把這條劃掉了」
+                    // ⚠️ 關鍵：強制 Flush 讓 SQL 立刻執行
+                    // 這樣才能立刻觸發 Unique Key 檢查並拋出異常
+                    orderRepository.flush();
+
+                    log.info("✅ [MySQL] 訂單建立成功: {}", orderNo);
+                }catch (DataIntegrityViolationException e) {
+                    // 🛑 5. 冪等性防禦 (Idempotency)
+                    // 捕捉到 order_no 重複，代表這是 Kafka 重複發送的訊息
+                    log.warn("⚠️ [重複消費] 攔截到重複訂單，忽略處理: {}", orderNo);
+
+                    // 這裡必須當作「成功」處理，因為我們已經擋下了重複攻擊
+                    // 如果拋出異常，Kafka 會一直重試，永遠卡在這裡
+                }
+
+                // 6. 手動提交 (防掉單)
+                // 只有程式跑到這裡沒崩潰，才告訴 Kafka 可以刪除訊息
                 ack.acknowledge();
-
             } else {
-                // 這種情況理論上極少發生 (因為 Redis 已經擋過一次)，除非 Redis 與 MySQL 資料嚴重不一致
-                log.warn("⚠️ [MySQL] 扣庫存失敗 (可能庫存已歸零)，但 Redis 卻放行了？需檢查資料一致性。");
-                // 邏輯上執行完畢，也算消費成功
+                log.warn("⚠️ [MySQL] 庫存不足 (Redis 與 MySQL 資料不一致)");
                 ack.acknowledge();
             }
 

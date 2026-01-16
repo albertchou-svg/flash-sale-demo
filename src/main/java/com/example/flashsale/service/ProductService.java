@@ -8,9 +8,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor // Lombok 自動生成 Constructor DI (依賴注入)
@@ -69,16 +72,20 @@ public class ProductService {
      * 搶購商品 (秒殺核心邏輯)
      */
     public String orderProduct(Long productId) {
+        // 1. Redis 扣庫存 (Lua 腳本)
         String key = STOCK_PREFIX + productId;
-
-        // 執行 Lua 腳本扣庫存
         Long result = redisTemplate.execute(stockScript, Collections.singletonList(key));
 
-        if (result != null && result == 1) {
-            // ✅ 搶購成功 (Redis 扣款完成)
+        if (result == 1) {
+            // 2. 模擬 User ID (因為無限購，所以同一個 ID 可以一直買)
+            Long userId = 1000L + new Random().nextInt(19000);
 
-            // 【修改點】不再只是印 Log，而是發送到 Kafka 排隊
-            kafkaService.sendOrderMessage(productId);
+            // 3. ✅ 生成全域唯一的訂單編號 (UUID)
+            // 這代表「這一次的點擊行為」，就算 Kafka 重送，這個 UUID 也不會變
+            String orderNo = UUID.randomUUID().toString();
+
+            // 4. 發送訊息 (帶入 UUID)
+            kafkaService.sendOrderMessage(productId, userId, orderNo);
 
             return "搶購成功，訂單處理中...";
         } else {

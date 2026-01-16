@@ -13,11 +13,10 @@ public class KafkaService {
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     // 發送訂單訊息
-    public void sendOrderMessage(Long productId) {
-        String message = "USER_ORDER:" + productId;
+    public void sendOrderMessage(Long productId, Long userId, String orderNo) {
+        // 訊息格式： "userId:productId:orderNo"
+        String message = userId + ":" + productId + ":" + orderNo;
         log.info("📤 [Kafka Producer] 發送搶購訊息: {}", message);
-
-        // send(topic名稱, 訊息內容)
         kafkaTemplate.send("flash-sale-topic", message);
     }
 }
