@@ -6,6 +6,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.scripting.support.ResourceScriptSource;
@@ -40,13 +41,18 @@ public class RedisConfig {
     }
 
 
+    // ✅ 修改這裡：回傳型別改成介面 RedisScript<Long>
     @Bean
-    public DefaultRedisScript<Long> stockScript() {
+    public RedisScript<Long> stockScript() {
         DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
-        // 設定腳本位置
+
+        // 您的路徑是 "scripts/stock_deduct.lua"，保持原樣即可
+        // 請確保 src/main/resources/scripts/stock_deduct.lua 檔案存在
         redisScript.setScriptSource(new ResourceScriptSource(new ClassPathResource("scripts/stock_deduct.lua")));
-        // 設定回傳型別
         redisScript.setResultType(Long.class);
+
         return redisScript;
     }
+
+
 }

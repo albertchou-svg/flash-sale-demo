@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.apache.curator.framework.CuratorFramework;
@@ -25,8 +26,8 @@ public class ProductService {
     private final ProductRepository productRepository;
     // 注入我們剛剛設定好的 RedisTemplate
     private final RedisTemplate<String, Object> redisTemplate;
-    // 注入剛剛設定的 Lua Script
-    private final DefaultRedisScript<Long> stockScript;
+    // Mockito 測試時也能把 Mock 物件注入進來
+    private final RedisScript<Long> stockScript;
     private static final String STOCK_PREFIX = "product:stock:";
     // 定義 Key 的前綴，方便管理 (例如 product:1)
     private static final String PRODUCT_CACHE_PREFIX = "product:";
@@ -81,7 +82,7 @@ public class ProductService {
         String key = STOCK_PREFIX + productId;
         Long result = redisTemplate.execute(stockScript, Collections.singletonList(key));
 
-        if (result == 1) {
+        if (result != null && result == 1) {
             // 2. 模擬 User ID (因為無限購，所以同一個 ID 可以一直買)
             Long userId = 1000L + new Random().nextInt(19000);
 
