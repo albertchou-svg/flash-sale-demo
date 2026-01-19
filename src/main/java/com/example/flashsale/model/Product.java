@@ -11,13 +11,19 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public class Product implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY) // 自動遞增主鍵
-    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    @Schema(
+            description = "商品唯一 ID",
+            example = "1",
+            accessMode = Schema.AccessMode.READ_ONLY
+    )
     private Long id;
 
     @Column(nullable = false)
+    @Schema(description = "商品名稱", example = "iPhone 15 Pro")
     private String name;
 
+    @Schema(description = "商品單價", example = "29900")
     private Integer price;
-
+    @Schema(description = "剩餘庫存", example = "100")
     private Integer stock;
 }
