@@ -32,4 +32,10 @@ public class ProductController {
     public String order(@PathVariable Long id) {
         return productService.orderProduct(id);
     }
+
+    @PostMapping("/{id}/order/zk")
+    @Operation(summary = "搶購商品 (Zookeeper)", description = "使用 Zookeeper 分散式鎖 (Curator)")
+    public String orderZk(@PathVariable Long id) {
+        return productService.orderProductByZk(id);
+    }
 }

@@ -8,7 +8,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.locks.InterProcessMutex;
+import java.util.concurrent.TimeUnit;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.Collections;
@@ -31,6 +33,9 @@ public class ProductService {
 
     // 注入 KafkaService
     private final KafkaService kafkaService;
+
+    // 注入 Zookeeper Client
+    private final CuratorFramework curatorFramework;
 
     @Transactional(rollbackFor = Exception.class)
     public Product createProduct(Product product) {
@@ -92,4 +97,60 @@ public class ProductService {
             return "搶購失敗，庫存不足";
         }
     }
+
+    /**
+     * 【新功能】使用 Zookeeper 分散式鎖進行搶購
+     * 特點：強一致性，但效能比 Redis Lua 差
+     */
+    public String orderProductByZk(Long productId) {
+        String lockPath = "/lock/product/" + productId;
+
+        // 1. 定義鎖 (針對該商品 ID)
+        InterProcessMutex lock = new InterProcessMutex(curatorFramework, lockPath);
+
+        try {
+            // 2. 嘗試獲取鎖 (最多等 3 秒)
+            // 這一行對應 ZK 內部：建立 Ephemeral Sequential Node
+            if (lock.acquire(3, TimeUnit.SECONDS)) {
+                try {
+                    // --- 進入 Critical Section (臨界區) ---
+                    // 在這裡面，同一時間只有一個執行緒能執行！
+
+                    // A. 查 Redis 庫存 (普通的 get，不需要 Lua)
+                    String stockKey = STOCK_PREFIX + productId;
+                    Object stockObj = redisTemplate.opsForValue().get(stockKey);
+                    int stock = stockObj == null ? 0 : Integer.parseInt(stockObj.toString());
+
+                    if (stock > 0) {
+                        // B. 扣 Redis 庫存
+                        redisTemplate.opsForValue().set(stockKey, String.valueOf(stock - 1));
+
+                        // C. 發送 Kafka (建立訂單流程)
+                        Long userId = 1000L + new Random().nextInt(19000);
+                        String orderNo = UUID.randomUUID().toString();
+                        kafkaService.sendOrderMessage(productId, userId, orderNo);
+
+                        log.info("✅ [ZK鎖] 搶購成功，剩餘庫存: {}", (stock - 1));
+                        return "搶購成功 (ZK Lock)";
+                    } else {
+                        log.warn("❌ [ZK鎖] 庫存不足");
+                        return "搶購失敗，庫存不足";
+                    }
+
+                } finally {
+                    // 3. 務必釋放鎖！(對應 ZK 內部：刪除節點)
+                    lock.release();
+                }
+            } else {
+                // 獲取鎖失敗 (超時)
+                log.warn("⏳ [ZK鎖] 搶鎖失敗 (人太多，排隊超時)");
+                return "搶購失敗，系統忙碌中";
+            }
+        } catch (Exception e) {
+            log.error("ZK 系統錯誤", e);
+            return "系統錯誤";
+        }
+    }
+
+
 }
