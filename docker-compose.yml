@@ -44,3 +44,21 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  # 5. MongoDB (新加入)
+  mongodb:
+    image: mongo:6.0  # 使用 6.0 穩定版
+    container_name: demo-mongodb
+    restart: always
+    ports:
+      - "27017:27017" # 預設埠口
+    environment:
+      # 設定帳密 (開發環境可選，若不想設帳密可移除這兩行)
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - mongo_data:/data/db # 掛載數據卷，避免重啟後資料消失
+
+# 定義數據卷
+volumes:
+  mongo_data:

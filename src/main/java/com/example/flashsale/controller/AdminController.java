@@ -4,11 +4,17 @@ import com.example.flashsale.model.Product;
 import com.example.flashsale.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -16,11 +22,36 @@ import java.util.List;
 @Slf4j
 public class AdminController {
 
+    @Autowired
+    private MongoTemplate mongoTemplate;
+
     private final ProductRepository productRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
     // 簡單的安全密鑰 (真實專案請用 Spring Security)
     private static final String ADMIN_SECRET = "123456";
+
+
+    @GetMapping("/analyze/failures")
+    public Map<String, Integer> analyzeFailures() {
+        // 使用 Aggregation 進行分組統計
+        // 語法：Select reason, count(*) from failure_logs group by reason
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.group("reason").count().as("totalCount"),
+                Aggregation.project("totalCount").and("reason").previousOperation()
+        );
+
+        AggregationResults<Map> results = mongoTemplate.aggregate(
+                aggregation, "failure_logs", Map.class
+        );
+
+        // 整理結果回傳
+        Map<String, Integer> stats = new HashMap<>();
+        for (Map map : results.getMappedResults()) {
+            stats.put((String) map.get("reason"), (Integer) map.get("totalCount"));
+        }
+        return stats;
+    }
 
     @PostMapping("/sync-stock")
     public String syncStock(@RequestParam String key) {

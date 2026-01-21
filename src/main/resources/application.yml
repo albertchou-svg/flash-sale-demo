@@ -43,6 +43,10 @@ spring:
       port: 6379
       database: 0
 
+    mongodb:
+      # 格式：mongodb://帳號:密碼@IP:Port/資料庫名稱?authSource=驗證庫
+      uri: mongodb://root:root@localhost:27017/flash_sale_logs?authSource=admin
+
 # Swagger UI ???? (Optional)
 springdoc:
   swagger-ui:

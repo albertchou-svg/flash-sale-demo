@@ -83,10 +83,10 @@ public class ProductService {
         // 1. Redis 扣庫存 (Lua 腳本)
         String key = STOCK_PREFIX + productId;
         Long result = redisTemplate.execute(stockScript, Collections.singletonList(key));
+        // 2. 模擬 User ID (因為無限購，所以同一個 ID 可以一直買)
+        Long userId = 1000L + new Random().nextInt(19000);
 
         if (result != null && result == 1) {
-            // 2. 模擬 User ID (因為無限購，所以同一個 ID 可以一直買)
-            Long userId = 1000L + new Random().nextInt(19000);
 
             // 3. ✅ 生成全域唯一的訂單編號 (UUID)
             // 這代表「這一次的點擊行為」，就算 Kafka 重送，這個 UUID 也不會變
@@ -97,6 +97,8 @@ public class ProductService {
 
             return "搶購成功，訂單處理中...";
         } else {
+            // 🔥 發送 Kafka 異步紀錄
+            kafkaService.sendFailureLog(userId, productId, "OUT_OF_STOCK");
             return "搶購失敗，庫存不足";
         }
     }
@@ -108,11 +110,13 @@ public class ProductService {
     public String orderProductByZk(Long productId) {
         String lockPath = "/lock/product/" + productId;
 
-        Long userId = 1000L + new Random().nextInt(19000);
+        Long userId = 1000L ;//+ new Random().nextInt(19000);
 
         // ✅ [新功能] Hazelcast 分散式黑名單檢查
         // IMap 的效能極高，因為它可能直接讀取本機記憶體
         if (hazelcastService.isBlacklisted(userId)) {
+            // 🔥 發送 Kafka 異步紀錄
+            kafkaService.sendFailureLog(userId, productId, "BLACKLIST_HIT");
             log.warn("🛑 用戶 {} 在黑名單中，拒絕搶購", userId);
             return "您的帳號異常，無法參與活動";
         }
