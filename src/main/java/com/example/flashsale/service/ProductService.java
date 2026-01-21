@@ -31,6 +31,8 @@ public class ProductService {
     private static final String STOCK_PREFIX = "product:stock:";
     // 定義 Key 的前綴，方便管理 (例如 product:1)
     private static final String PRODUCT_CACHE_PREFIX = "product:";
+    // 注入 HazelcastService
+    private final HazelcastService hazelcastService;
 
     // 注入 KafkaService
     private final KafkaService kafkaService;
@@ -106,6 +108,15 @@ public class ProductService {
     public String orderProductByZk(Long productId) {
         String lockPath = "/lock/product/" + productId;
 
+        Long userId = 1000L + new Random().nextInt(19000);
+
+        // ✅ [新功能] Hazelcast 分散式黑名單檢查
+        // IMap 的效能極高，因為它可能直接讀取本機記憶體
+        if (hazelcastService.isBlacklisted(userId)) {
+            log.warn("🛑 用戶 {} 在黑名單中，拒絕搶購", userId);
+            return "您的帳號異常，無法參與活動";
+        }
+
         // 1. 定義鎖 (針對該商品 ID)
         InterProcessMutex lock = new InterProcessMutex(curatorFramework, lockPath);
 
@@ -125,9 +136,8 @@ public class ProductService {
                     if (stock > 0) {
                         // B. 扣 Redis 庫存
                         redisTemplate.opsForValue().set(stockKey, String.valueOf(stock - 1));
-
                         // C. 發送 Kafka (建立訂單流程)
-                        Long userId = 1000L + new Random().nextInt(19000);
+
                         String orderNo = UUID.randomUUID().toString();
                         kafkaService.sendOrderMessage(productId, userId, orderNo);
 
