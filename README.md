@@ -29,3 +29,6 @@ Java17
 
 這是一個搶購商品的系統
 User->搶購商品->Redis做第一層數量控管->Kafka發起搶購訊息->Kafka和DB做數量同步(原子性)
+Hazelcast做黑名單列表、系統廣播
+Zookeeper做分散式鎖控管 (另一種購買方式)
+Mongodb寫log

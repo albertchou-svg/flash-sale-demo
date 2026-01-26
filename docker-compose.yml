@@ -1,6 +1,23 @@
 version: '3.8'
 services:
-  # 1. MySQL
+  # === 您的 Java App ===
+  flash-sale-app:
+    build: .  # 使用當前目錄的 Dockerfile 建置
+    container_name: flash-sale-app
+    ports:
+      - "8080:8080" # 映射到本機 8080
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker # 🔥 關鍵：啟用 docker 設定檔
+    depends_on:
+      - mysql
+      - redis
+      - zookeeper
+      - kafka
+      - mongodb
+    networks:
+      - flash-sale-net
+
+  # === 基礎設施 ===
   mysql:
     image: mysql:8.0
     container_name: demo-mysql
@@ -10,15 +27,17 @@ services:
     ports:
       - "3306:3306"
     command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - flash-sale-net
 
-  # 2. Redis
   redis:
     image: redis:7.0
     container_name: demo-redis
     ports:
       - "6379:6379"
+    networks:
+      - flash-sale-net
 
-  # 3. Zookeeper (Confluent 版本)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: demo-zookeeper
@@ -27,8 +46,9 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - flash-sale-net
 
-  # 4. Kafka (Confluent 版本)
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: demo-kafka
@@ -39,26 +59,35 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      # ⚠️ 這裡做了修改：讓 Kafka 同時支援 內部(Docker) 和 外部(Host) 連線
+      # 內部用 kafka:29092，外部用 localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - flash-sale-net
 
-  # 5. MongoDB (新加入)
   mongodb:
-    image: mongo:6.0  # 使用 6.0 穩定版
+    image: mongo:6.0
     container_name: demo-mongodb
     restart: always
     ports:
-      - "27017:27017" # 預設埠口
+      - "27017:27017"
     environment:
-      # 設定帳密 (開發環境可選，若不想設帳密可移除這兩行)
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
-      - mongo_data:/data/db # 掛載數據卷，避免重啟後資料消失
+      - mongo_data:/data/db
+    networks:
+      - flash-sale-net
 
-# 定義數據卷
 volumes:
   mongo_data:
+
+networks:
+  flash-sale-net:
+    driver: bridge

@@ -1,5 +1,7 @@
 package com.example.flashsale.config;
 
+
+import org.springframework.beans.factory.annotation.Value;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -10,8 +12,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ZookeeperConfig {
 
-    // Docker 裡的 Zookeeper 位址
-    private static final String ZK_ADDRESS = "localhost:2181";
+    // 修改：從 application.yml 讀取，預設值為 localhost:2181
+    @Value("${zookeeper.address:localhost:2181}")
+    private String ZK_ADDRESS;
 
     // 重試策略：每 1秒重試一次，最多 3次
     private static final RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(1000, 3);

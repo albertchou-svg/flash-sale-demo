@@ -1,0 +1,26 @@
+spring:
+  # 資料庫設定 (localhost -> mysql)
+  datasource:
+    url: jdbc:mysql://mysql:3306/flash_sale_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Redis 設定 (localhost -> redis)
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+  # MongoDB 設定 (localhost -> mongodb)
+  # 注意：這裡對應 docker-compose 裡的 service name，如果是 mongodb 就寫 mongodb
+    mongodb:
+      uri: mongodb://root:root@mongodb:27017/flash_sale_logs?authSource=admin
+
+  # Kafka 設定 (localhost -> kafka)
+  kafka:
+    bootstrap-servers: kafka:9092 # 指向 Docker 內部的 Kafka
+
+zookeeper:
+    address: zookeeper:2181
+# Hazelcast 設定 (如果需要透過設定檔覆蓋 IP，可以在這裡加，目前程式碼寫死 127.0.0.1 在容器內也是通的，因為是單節點)
