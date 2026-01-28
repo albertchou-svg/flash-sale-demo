@@ -54,14 +54,15 @@ services:
     container_name: demo-kafka
     ports:
       - "9092:9092"
+      - "9093:9093"
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       # ⚠️ 這裡做了修改：讓 Kafka 同時支援 內部(Docker) 和 外部(Host) 連線
-      # 內部用 kafka:29092，外部用 localhost:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9093
+      # 內部用 kafka:29092，把原本的 localhost 改成 host.docker.internal(為了k8s，如果要改回本機要改回localhost)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://host.docker.internal:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT

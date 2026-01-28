@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flash-sale-app
+spec:
+  replicas: 3 # 🔥 重點：直接開啟 3 個實例，體驗 K8s 的威力
+  selector:
+    matchLabels:
+      app: flash-sale
+  template:
+    metadata:
+      labels:
+        app: flash-sale
+    spec:
+      containers:
+        - name: flash-sale-app
+          image: flash-sale-app:k8s-v1 # 對應剛才 build 的 Tag
+          imagePullPolicy: Never # 🔥 關鍵：強制使用本機 Image，不去網路下載
+          ports:
+            - containerPort: 8080
+
+          # 👇 這裡就是「混合架構」的精髓：環境變數覆蓋法
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker" # 沿用 docker profile 的邏輯
+
+            # 覆蓋 MySQL 連線 (連回本機)
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://host.docker.internal:3306/flash_sale_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+
+            # 覆蓋 Redis 連線
+            - name: SPRING_DATA_REDIS_HOST
+              value: "host.docker.internal"
+
+            # 覆蓋 MongoDB 連線
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://root:root@host.docker.internal:27017/flash_sale_logs?authSource=admin"
+
+            # 覆蓋 Kafka 連線 (注意：Kafka 的設定比較敏感，這裡連本機的 9093 外部 Port)
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "host.docker.internal:9093"
+
+            # 覆蓋 Zookeeper 連線
+            - name: ZOOKEEPER_ADDRESS
+              value: "host.docker.internal:2181"
+
+---
+# 定義 Service 讓外部可以連線
+apiVersion: v1
+kind: Service
+metadata:
+  name: flash-sale-service
+spec:
+  type: LoadBalancer # 在 Docker Desktop 會自動映射到 localhost
+  selector:
+    app: flash-sale
+  ports:
+    - protocol: TCP
+      port: 80      # 外部存取的 Port (瀏覽器打 localhost:80)
+      targetPort: 8080 # 轉發到容器內的 8080
