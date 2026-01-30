@@ -32,3 +32,30 @@ User->搶購商品->Redis做第一層數量控管->Kafka發起搶購訊息->Kafk
 Hazelcast做黑名單列表、系統廣播
 Zookeeper做分散式鎖控管 (另一種購買方式)
 Mongodb寫log
+
+-------------------------------
+指令紀錄
+
+# 使用 Winget
+winget install stern
+# 它會監聽所有名稱包含 "flash-sale" 的 Pod
+stern flash-sale
+
+# --prefix 會顯示 Log 是來自哪個 Pod
+# -l app=flash-sale 會選取所有符合標籤的 Pod
+kubectl logs -f -l app=flash-sale --prefix
+
+# 明確指定要啟動的服務，跳過 flash-sale-app
+docker-compose up -d mysql redis zookeeper kafka mongodb
+# 更改設定時應用設定檔  hpa自動擴充設定
+kubectl apply -f k8s-hpa.yaml
+# app的設定
+kubectl apply -f k8s-deployment.yaml
+# 打包JAR
+./mvnw clean package -DskipTests
+# docker build 
+docker build -t flash-sale-app:k8s-v1 .
+# 強制重啟pod
+kubectl rollout restart deployment/flash-sale-app
+# 查看pod狀態
+kubectl get pods -w
