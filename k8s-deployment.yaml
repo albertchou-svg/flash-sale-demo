@@ -19,6 +19,15 @@ spec:
           ports:
             - containerPort: 8080
 
+          # 👇 新增這段：資源限制
+          resources:
+            requests:
+              cpu: "200m"  # 請求 0.2 顆 CPU (基準線)
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"  # 最多用到 1 顆 CPU (上限)
+              memory: "1Gi"
+
           # 👇 這裡就是「混合架構」的精髓：環境變數覆蓋法
           env:
             - name: SPRING_PROFILES_ACTIVE
