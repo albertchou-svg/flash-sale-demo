@@ -4,7 +4,9 @@ import com.example.flashsale.model.Product;
 import com.example.flashsale.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -25,7 +27,14 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     // 注入我們剛剛設定好的 RedisTemplate
-    private final RedisTemplate<String, Object> redisTemplate;
+    //private final RedisTemplate<String, Object> redisTemplate;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate; // 🔥 專門用來處理庫存數字
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate; // 保留這個處理複雜物件
+
+
     // Mockito 測試時也能把 Mock 物件注入進來
     private final RedisScript<Long> stockScript;
     private static final String STOCK_PREFIX = "product:stock:";
@@ -148,7 +157,8 @@ public class ProductService {
 
                     if (stock > 0) {
                         // B. 扣 Redis 庫存
-                        redisTemplate.opsForValue().set(stockKey, String.valueOf(stock - 1));
+                        //redisTemplate.opsForValue().set(stockKey, String.valueOf(stock - 1));
+                        stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(stock - 1));
                         // C. 發送 Kafka (建立訂單流程)
 
                         String orderNo = UUID.randomUUID().toString();
