@@ -1,21 +1,22 @@
 version: '3.8'
 services:
-  # === 您的 Java App ===
-  flash-sale-app:
-    build: .  # 使用當前目錄的 Dockerfile 建置
-    container_name: flash-sale-app
-    ports:
-      - "8080:8080" # 映射到本機 8080
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker # 🔥 關鍵：啟用 docker 設定檔
-    depends_on:
-      - mysql
-      - redis
-      - zookeeper
-      - kafka
-      - mongodb
-    networks:
-      - flash-sale-net
+  # === 您的 Java App (建議在開發 K8s 時註解掉) ===
+  # 如果要跑 K8s 或 IntelliJ，請把這段註解掉，避免 Port 8080 衝突
+  # flash-sale-app:
+  #   build: .
+  #   container_name: flash-sale-app
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #   depends_on:
+  #     - mysql
+  #     - redis
+  #     - zookeeper
+  #     - kafka
+  #     - mongodb
+  #   networks:
+  #     - flash-sale-net
 
   # === 基礎設施 ===
   mysql:
@@ -27,6 +28,13 @@ services:
     ports:
       - "3306:3306"
     command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      # 👇 修改這裡：格式為 "本機路徑:容器內路徑"
+      # 建議寫法 (使用 / 避免錯誤)
+      - C:/source/mysql-data:/var/lib/mysql
+
+      # 或者，如果您 docker-compose.yml 就在 C:\source 下，用相對路徑最穩：
+      # - ./mysql-data:/var/lib/mysql
     networks:
       - flash-sale-net
 
@@ -53,19 +61,30 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: demo-kafka
     ports:
-      - "9092:9092"
-      - "9093:9093"
+      - "9092:9092" # 給 IntelliJ (localhost)
+      - "9093:9093" # 給 K8s (host.docker.internal)
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # ⚠️ 這裡做了修改：讓 Kafka 同時支援 內部(Docker) 和 外部(Host) 連線
-      # 內部用 kafka:29092，把原本的 localhost 改成 host.docker.internal(為了k8s，如果要改回本機要改回localhost)
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://host.docker.internal:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # 🔥 關鍵修改：定義三個監聽器
+      # 1. INTERNAL (29092): Docker 內部溝通 (Controller 溝通)
+      # 2. LOCALHOST (9092): 給本機 IntelliJ 開發用
+      # 3. EXTERNAL (9093): 給 K8s Pod 用
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,LOCALHOST:PLAINTEXT,EXTERNAL:PLAINTEXT
+
+      # 開放三個 Port
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,LOCALHOST://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+
+      # 對外廣播地址 (別人要怎麼找到我)
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,LOCALHOST://localhost:9092,EXTERNAL://host.docker.internal:9093
+
+      # 內部通訊走 INTERNAL 通道
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -82,12 +101,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
-      - mongo_data:/data/db
+      # 👇 MongoDB 建議：映射出來，這樣容器死掉還能查 Log
+      - C:/source/mongo-data:/data/db
     networks:
       - flash-sale-net
 
 volumes:
   mongo_data:
+  mysql_data: # 配合上面的 MySQL volume
 
 networks:
   flash-sale-net:

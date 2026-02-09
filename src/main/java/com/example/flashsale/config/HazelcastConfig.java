@@ -6,10 +6,12 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration
 public class HazelcastConfig {
 
+    @Primary
     @Bean
     public HazelcastInstance hazelcastInstance() {
         Config config = new Config();
