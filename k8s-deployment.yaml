@@ -61,9 +61,13 @@ metadata:
   name: flash-sale-service
 spec:
   type: LoadBalancer # 在 Docker Desktop 會自動映射到 localhost
+  # 👇 1. 把 LoadBalancer 改成 NodePort
+  #type: NodePort
   selector:
     app: flash-sale
   ports:
     - protocol: TCP
       port: 80      # 外部存取的 Port (瀏覽器打 localhost:80)
       targetPort: 8080 # 轉發到容器內的 8080
+      # 👇 2. 指定對應到 Kind Worker 的 30000 (必須跟 kind config 一樣)
+      #nodePort: 30000

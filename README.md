@@ -59,3 +59,21 @@ docker build -t flash-sale-app:k8s-v1 .
 kubectl rollout restart deployment/flash-sale-app
 # 查看pod狀態
 kubectl get pods -w
+
+#啟動多節點叢集
+kind create cluster --config kind-multi-node.yaml --name my-cluster
+
+#查看節點狀態
+kubectl get nodes
+
+# 把 Image 載入到 Kind 的節點裡
+kind load docker-image flash-sale-app:k8s-v1 --name my-cluster
+
+#確認分布
+kubectl get pods -o wide
+
+#當本機上有多個k8s時可以確認狀態
+kubectl config get-contexts
+
+#切換不同的k8s
+kubectl config use-context kind-my-cluster
